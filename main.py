@@ -1,86 +1,60 @@
-import os
-import re
 import time
-import json
 import requests
-from bs4 import BeautifulSoup
-from datetime import datetime
+import feedparser
+import os
 
-# Discord Webhook
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
+# Webhook URL közvetlenül beállítva
+WEBHOOK_URL = "https://discord.com/api/webhooks/1520846598698045490/OukWGlhNqy-w575bqJpw3sYAoHHXrfSK9HcMjmHSCsTWo5KV5nz2HGpAzZcN3mKe6yIA"
 
-# Nitter profilok listája
-NITTER_PROFILES = [
-    "https://nitter.net/tobimono2", "https://nitter.net/United24media", "https://nitter.net/InformNapalm",
-    "https://nitter.net/EsGeeks", "https://nitter.net/sentdefender", "https://nitter.net/threatcluster",
-    "https://nitter.net/FoxNews", "https://nitter.net/ChristinaManic", "https://nitter.net/FairfaxGOP",
-    "https://nitter.net/NewYorker", "https://nitter.net/cnnbrk", "https://nitter.net/BBCBreaking",
-    "https://nitter.net/ABC", "https://nitter.net/News_Ejazah", "https://nitter.net/CBSNews",
-    "https://nitter.net/bellingcat", "https://nitter.net/Osinttechnical", "https://nitter.net/OsintTV",
-    "https://nitter.net/OsintUpdates", "https://nitter.net/AggregateOsint", "https://nitter.net/realDonaldTrump",
-    "https://nitter.net/TheHackersNews", "https://nitter.net/newsycombinator", "https://nitter.net/cyber",
-    "https://nitter.net/DNewsHungary", "https://nitter.net/Crypto_Newslett", "https://nitter.net/cryptonwsuk",
-    "https://nitter.net/thenexus_team"
+PROFILES = [
+    "tobimono2", "United24media", "InformNapalm", "EsGeeks", "sentdefender", 
+    "threatcluster", "FoxNews", "ChristinaManic", "FairfaxGOP", "NewYorker", 
+    "cnnbrk", "BBCBreaking", "ABC", "News_Ejazah", "CBSNews", "bellingcat", 
+    "Osinttechnical", "OsintTV", "OsintUpdates", "AggregateOsint", 
+    "realDonaldTrump", "TheHackersNews", "newsycombinator", "cyber", 
+    "DNewsHungary", "Crypto_Newslett", "cryptonwsuk", "thenexus_team"
 ]
 
-def kuld_discordra(embed):
-    payload = {"username": "Velox Nitter Crawler", "embeds": [embed]}
-    try:
-        requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=10)
-    except Exception as e:
-        print(f"Discord hiba: {e}")
+INSTANCE = "https://nitter.poast.org"
 
-def scrap_nitter(url):
+# Itt tároljuk a legutóbbi poszt címét, hogy ne spamoljon
+last_post_titles = {}
+
+def send_to_discord(title, link):
+    payload = {"content": f"📢 **Új bejegyzés:** {title}\n{link}"}
     try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        resp = requests.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        
-        # A legfrissebb tweet keresése (Nitter specifikus osztályok)
-        tweet = soup.find("div", class_="timeline-item")
-        if not tweet: return None
-        
-        tweet_id = tweet.get("data-permalink-path")
-        content = tweet.find("div", class_="tweet-content").get_text()
-        user = tweet.find("a", class_="fullname").get_text()
-        
-        # Média keresése
-        img_tag = tweet.find("div", class_="attachment image")
-        img_url = img_tag.find("img")["src"] if img_tag else None
-        
-        return {
-            "id": tweet_id,
-            "text": content,
-            "user": user,
-            "image": f"https://nitter.net{img_url}" if img_url and img_url.startswith("/") else img_url,
-            "url": f"https://nitter.net{tweet_id}"
-        }
-    except Exception:
-        return None
+        requests.post(WEBHOOK_URL, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Discord küldési hiba: {e}")
 
 def main():
-    mar_ellenorzott = {} # {url: tweet_id}
-    print("🚀 Nitter Crawler elindult")
+    print("🚀 Nitter RSS Crawler elindult...")
     
     while True:
-        for profile in NITTER_PROFILES:
-            data = scrap_nitter(profile)
-            if data and data["id"] != mar_ellenorzott.get(profile):
-                print(f"Új bejegyzés: {data['url']}")
-                
-                embed = {
-                    "title": f"Új tweet: {data['user']}",
-                    "description": data["text"],
-                    "url": data["url"],
-                    "color": 3447003
-                }
-                if data["image"]:
-                    embed["image"] = {"url": data["image"]}
-                
-                kuld_discordra(embed)
-                mar_ellenorzott[profile] = data["id"]
+        for profile in PROFILES:
+            rss_url = f"{INSTANCE}/{profile}/rss"
+            try:
+                feed = feedparser.parse(rss_url)
+                if feed.entries:
+                    latest = feed.entries[0]
+                    title = latest.title
+                    link = latest.link
+                    
+                    # Ha a poszt címe új, elküldjük
+                    if profile not in last_post_titles:
+                        last_post_titles[profile] = title
+                    elif last_post_titles[profile] != title:
+                        print(f"Új poszt találva: {profile}")
+                        send_to_discord(title, link)
+                        last_post_titles[profile] = title
+            except Exception as e:
+                print(f"Hiba a {profile} RSS olvasásakor: {e}")
             
-            time.sleep(10) # Ne kapjunk ban-t a Nittertől
+            # Rövid szünet a profilok között
+            time.sleep(2)
+        
+        # 300 másodperces várakozás a következő kör előtt
+        print("Ciklus kész, várakozás 300 mp...")
         time.sleep(300)
 
 if __name__ == "__main__":
