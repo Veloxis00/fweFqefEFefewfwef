@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 # Discord Webhook
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520846598698045490/OukWGlhNqy-w575bqJpw3sYAoHHXrfSK9HcMjmHSCsTWo5KV5nz2HGpAzZcN3mKe6yIA"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
 
 # Nitter profilok listája
 NITTER_PROFILES = [
